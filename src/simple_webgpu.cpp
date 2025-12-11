@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <iostream>
 #include <webgpu/webgpu.h>
+#include <GLFW/glfw3.h>
+#include <glfw3webgpu.h>
 
 // These callbacks are used for the async functions getting adapter and device
 void adapter_callback(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata1, void* userdata2) {
@@ -104,7 +106,58 @@ int main(int argc, char** argv) {
     encoderDesc.label = WGPUStringView{"Command encoder", WGPU_STRLEN};
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device, &encoderDesc);
 
+    // Use GLFW for windows
+    if (!glfwInit()) {
+        fprintf(stderr,"Failed to initialize GLFW!\n");
+        return 1;
+    }
+    glfwWindowHint(GLFW_RESIZABLE,GLFW_FALSE);
+    GLFWwindow* window = glfwCreateWindow(640,480,"Simple WebGPU test",nullptr,nullptr);
+    if (!window) {
+        fprintf(stderr,"Failed to initialize window!\n");
+        glfwTerminate();
+        return 1;
+    }
+
+    WGPUSurface surface = glfwGetWGPUSurface(instance, window);
+    WGPUSurfaceConfiguration config = {};
+    config.nextInChain = nullptr;
+
+    int fbWidth, fbHeight;
+    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+    config.width = fbWidth;
+    config.height = fbHeight;
+
+    WGPUSurfaceCapabilities capabilities;
+    wgpuSurfaceGetCapabilities(surface,adapter,&capabilities);
+
+    if (capabilities.formatCount == 0) {
+        fprintf(stderr,"No supported surface formats!\n");
+        return 1;
+    }
+
+    WGPUTextureFormat preferredForamt = capabilities.formats[0];
+    config.format = preferredForamt;
+
+    config.viewFormatCount = 0;
+    config.viewFormats = nullptr;
+
+    config.usage = WGPUTextureUsage_RenderAttachment;
+    config.device = device;
+    config.presentMode = WGPUPresentMode_Fifo;
+    config.alphaMode = WGPUCompositeAlphaMode_Auto;
+
+    wgpuSurfaceConfigure(surface,&config);
+    //surface.Configure(&config);
+    
+
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+    }
+
     // Cleanup
+    glfwDestroyWindow(window);
+    glfwTerminate();
     wgpuQueueRelease(queue);
     wgpuDeviceRelease(device);
     wgpuAdapterRelease(adapter);

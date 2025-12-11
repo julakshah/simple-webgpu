@@ -38,7 +38,9 @@ set(WEBGPU_BACKEND "DAWN") # Google's implementation of webgpu
 
 add_subdirectory(WebGPU-distribution)
 add_subdirectory(glfw)
+add_subdirectory(glfw3webgpu)
 add_subdirectory(src)
+
 
 # For testing stuff I guess (Steve had these so we can change if we use
 # something else)
