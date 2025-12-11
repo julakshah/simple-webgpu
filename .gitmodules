@@ -1,3 +1,7 @@
 [submodule "WebGPU-distribution"]
 	path = WebGPU-distribution
 	url = git@github.com:eliemichel/WebGPU-distribution.git
+	
+[submodule "glfw"]
+	path = glfw
+	url = git@github.com:glfw/glfw.git
