@@ -32,6 +32,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 # up here. (like Vim lol)
 set(CMAKE_C_CLANG_TIDY "clang-tidy")
 
+# The WebGPU-distribution repo lets us choose which webgpu implementation to use
+set(WEBGPU_BACKEND "DAWN") # Google's implementation of webgpu
+#set(WEBGPU_BACKEND "WGPU") # Implementation in Rust
+
 add_subdirectory(WebGPU-distribution)
 add_subdirectory(glfw)
 add_subdirectory(src)

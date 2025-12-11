@@ -29,7 +29,8 @@ int main(int argc, char** argv) {
     instanceDesc.nextInChain = nullptr;
 
     // Thread panic if WaitAny isn't supported
-    instanceDesc.features.timedWaitAnyEnable = false;
+    //instanceDesc.features.timedWaitAnyEnable = false; // used in WGPU
+    instanceDesc.capabilities.timedWaitAnyEnable = false; // used in Dawn
 
     WGPUInstance instance = wgpuCreateInstance(&instanceDesc);
     if (!instance) {
@@ -61,7 +62,10 @@ int main(int argc, char** argv) {
     printf("Got adapter\n");
 
     WGPUAdapterInfo info{};
-    wgpuAdapterGetInfo(adapter,&info);
+    WGPUStatus s = wgpuAdapterGetInfo(adapter,&info);
+    if (s != WGPUStatus_Success) {
+        fprintf(stderr, "wgpuAdapterGetInfo failed (status %d)\n", (int)s);
+    }
     printf("VendorID: %x\n", info.vendorID);
     printf("Vendor: %.*s\n", (int)info.vendor.length, info.vendor.data);
     printf("Architecture: %.*s\n", (int)info.vendor.length, info.architecture.data);
