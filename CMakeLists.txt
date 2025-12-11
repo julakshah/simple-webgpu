@@ -7,22 +7,24 @@ project(
   LANGUAGES C CXX
 )
 
-set(CMAKE_C_STANDARD  23)
+set(CMAKE_C_STANDARD  17)
+set(CMAKE_CXX_STANDARD 17)
+
 
 # Turn on warnings that help flag the most common potential issues in code.
-set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wconversion")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wdouble-promotion")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wduplicated-branches")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wduplicated-cond")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wlogical-op")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmisleading-indentation")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wnull-dereference")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wshadow")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wsign-conversion")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wunreachable-code")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wunused")
+# set(CMAKE_C_FLAGS "-Wall -Wextra")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wconversion")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wdouble-promotion")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wduplicated-branches")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wduplicated-cond")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wlogical-op")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmisleading-indentation")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wnull-dereference")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wshadow")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wsign-conversion")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wunreachable-code")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wunused")
 # Enable debugging through GDB.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 
@@ -30,6 +32,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 # up here. (like Vim lol)
 set(CMAKE_C_CLANG_TIDY "clang-tidy")
 
+add_subdirectory(WebGPU-distribution)
+add_subdirectory(glfw)
 add_subdirectory(src)
 
 # For testing stuff I guess (Steve had these so we can change if we use
