@@ -7,6 +7,9 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <chrono>
+#include <thread>
+#include <unistd.h>
 #include <webgpu/webgpu.h>
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
@@ -26,6 +29,7 @@ typedef struct PipelineSetupOutput {
     WGPUBuffer transformBuffer;
     WGPUBindGroup bindGroup;
     WGPURenderPipeline renderPipeline;
+    WGPUTexture depthTexture;
     WGPUTextureView depthTextureView;
     uint32_t height;
     uint32_t width;
@@ -36,6 +40,13 @@ void error_callback(WGPUPopErrorScopeStatus status, WGPUErrorType type, WGPUStri
     if (message.length > 0) {
         printf("Status: %d, Error type: %d, Message: %.*s\n", (int)status, (int)type, (int)message.length, message.data);
     }
+}
+
+static void on_uncaptured_error(const WGPUDevice* device, WGPUErrorType type, WGPUStringView msg, void*, void*) {
+  fprintf(stderr, "UNCAPTURED %d: %.*s\n", (int)type, (int)msg.length, msg.data);
+}
+static void on_device_lost(const WGPUDevice* device, WGPUDeviceLostReason reason, WGPUStringView msg, void*, void*) {
+  fprintf(stderr, "DEVICE LOST %d: %.*s\n", (int)reason, (int)msg.length, msg.data);
 }
 
 void setDefault(WGPUStencilFaceState &stencilFaceState) {
@@ -264,8 +275,6 @@ void create_buffers(PipelineSetupOutput* output, WGPUDevice* device_ptr, WGPUTex
     fragment.entryPoint = {"fs_main",WGPU_STRLEN};
     fragment.constantCount = 0;
     fragment.constants = nullptr;
-
-    renderDesc.depthStencil = nullptr; 
     renderDesc.fragment = &fragment;
 
     WGPUBlendState blendState = {};
@@ -317,6 +326,7 @@ void create_buffers(PipelineSetupOutput* output, WGPUDevice* device_ptr, WGPUTex
     WGPUTexture depthTexture = wgpuDeviceCreateTexture(device, &depthTextureDesc);
 
     WGPUTextureViewDescriptor depthTextureViewDesc = {};
+    depthTextureViewDesc.nextInChain = nullptr;
     depthTextureViewDesc.aspect = WGPUTextureAspect_DepthOnly;
     depthTextureViewDesc.baseArrayLayer = 0;
     depthTextureViewDesc.arrayLayerCount = 1;
@@ -342,11 +352,12 @@ void create_buffers(PipelineSetupOutput* output, WGPUDevice* device_ptr, WGPUTex
         .transformBuffer=transformBuffer,
         .bindGroup=bindGroup,
         .renderPipeline=renderPipeline,
+        .depthTexture=depthTexture,
         .depthTextureView=depthTextureView
     };
 
     // Pop error scope to see any errors
-    WGPUPopErrorScopeCallbackInfo cbInfo;
+    WGPUPopErrorScopeCallbackInfo cbInfo = {};
     cbInfo.callback = &error_callback;
     cbInfo.nextInChain = nullptr;
     cbInfo.mode = WGPUCallbackMode_AllowSpontaneous;
@@ -357,12 +368,14 @@ void create_buffers(PipelineSetupOutput* output, WGPUDevice* device_ptr, WGPUTex
 SurfaceViewData get_next_surface_view_data(WGPUSurface* surface) {
     WGPUSurfaceTexture surfaceTexture;
     wgpuSurfaceGetCurrentTexture(*surface, &surfaceTexture);
+    //printf("Surface status: %d\n",surfaceTexture.status);
     if (surfaceTexture.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
         surfaceTexture.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
+        printf("SurfaceTexture is not success! Skipping iteration\n");
         return {surfaceTexture, nullptr};
     }
 
-    WGPUTextureViewDescriptor viewDescriptor;
+    WGPUTextureViewDescriptor viewDescriptor = {};
     viewDescriptor.nextInChain = nullptr;
     viewDescriptor.label = {"Surface texture view",WGPU_STRLEN};
     viewDescriptor.format = wgpuTextureGetFormat(surfaceTexture.texture);
@@ -372,7 +385,6 @@ SurfaceViewData get_next_surface_view_data(WGPUSurface* surface) {
     viewDescriptor.baseArrayLayer = 0;
     viewDescriptor.arrayLayerCount = 1;
     viewDescriptor.aspect = WGPUTextureAspect_All;
-    viewDescriptor.usage = WGPUTextureUsage_RenderAttachment; // Use for rendering
     WGPUTextureView targetView = wgpuTextureCreateView(surfaceTexture.texture, &viewDescriptor);
 
     // Return texture view
@@ -414,15 +426,19 @@ void main_loop(WGPUSurface* surface_ptr, WGPUDevice* device_ptr, WGPUQueue* queu
 
     SurfaceViewData surfViewData = get_next_surface_view_data(&surface);
     WGPUSurfaceTexture surface_texture = surfViewData.surfaceTexture;
+
+    printf("Surface texture status: %d\n", surface_texture.status);
+
     WGPUTextureView targetView = surfViewData.textureView;
     if (!targetView) {
         printf("Target view is NULL! Skipping iteration\n");
+        wgpuCommandEncoderRelease(encoder);
         return;
     }
 
     // Texture can be released after getting texture view if backend isn't WGPU
 #ifndef WEBGPU_BACKEND_WGPU
-    wgpuTextureRelease(surface_texture.texture);
+    //wgpuTextureRelease(surface_texture.texture);
 #endif
 
     // Build render pass encoder
@@ -465,6 +481,7 @@ void main_loop(WGPUSurface* surface_ptr, WGPUDevice* device_ptr, WGPUQueue* queu
     depthStencilAttachment.stencilReadOnly = true;
 
     renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
+    //renderPassDesc.depthStencilAttachment = nullptr;
     renderPassDesc.timestampWrites = nullptr;
 
     WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(encoder, &renderPassDesc);
@@ -477,18 +494,23 @@ void main_loop(WGPUSurface* surface_ptr, WGPUDevice* device_ptr, WGPUQueue* queu
     wgpuRenderPassEncoderDrawIndexed(renderPass,36,1,0,0,0);
 
     wgpuRenderPassEncoderEnd(renderPass);
+    wgpuRenderPassEncoderRelease(renderPass);
 
     WGPUCommandBufferDescriptor cmdBufferDescriptor = {};
     cmdBufferDescriptor.nextInChain = nullptr;
     cmdBufferDescriptor.label = {"Command buffer",WGPU_STRLEN};
     WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder,&cmdBufferDescriptor);
 
-    wgpuQueueSubmit(queue,1,&command);
-    
-    wgpuRenderPassEncoderRelease(renderPass);
+    printf("SurfaceTexture: %p\n",surface_texture);
+    printf("Texture: %p\n",surface_texture.texture);
+    printf("Target View: %p\n",targetView);
 
+    wgpuQueueSubmit(queue,1,&command);
+    wgpuCommandBufferRelease(command);
     wgpuSurfacePresent(surface);
+    
     wgpuTextureViewRelease(targetView);
+    wgpuTextureRelease(surface_texture.texture);
     wgpuCommandEncoderRelease(encoder);
 
 #ifdef WEBGPU_BACKEND_WGPU
@@ -496,7 +518,7 @@ void main_loop(WGPUSurface* surface_ptr, WGPUDevice* device_ptr, WGPUQueue* queu
 #endif  
 
     // Pop the error scope to print errors that were caught
-    WGPUPopErrorScopeCallbackInfo cbInfo;
+    WGPUPopErrorScopeCallbackInfo cbInfo = {};
     cbInfo.callback = &error_callback;
     cbInfo.nextInChain = nullptr;
     cbInfo.mode = WGPUCallbackMode_AllowSpontaneous;
@@ -562,6 +584,17 @@ int main(int argc, char** argv) {
     deviceCallbackInfo.mode = callbackMode;
     deviceCallbackInfo.userdata1 = &device;
 
+    deviceDesc.uncapturedErrorCallbackInfo.callback = &on_uncaptured_error;
+    deviceDesc.uncapturedErrorCallbackInfo.nextInChain = nullptr;
+    deviceDesc.uncapturedErrorCallbackInfo.userdata1 = nullptr;
+    deviceDesc.uncapturedErrorCallbackInfo.userdata2 = nullptr;
+
+    deviceDesc.deviceLostCallbackInfo.callback = on_device_lost;
+    deviceDesc.deviceLostCallbackInfo.mode = WGPUCallbackMode_AllowSpontaneous;
+    deviceDesc.deviceLostCallbackInfo.nextInChain = nullptr;
+    deviceDesc.deviceLostCallbackInfo.userdata1 = nullptr;
+    deviceDesc.deviceLostCallbackInfo.userdata2 = nullptr;
+
     // Start an async device request
     wgpuAdapterRequestDevice(adapter, &deviceDesc, deviceCallbackInfo);
 
@@ -624,19 +657,29 @@ int main(int argc, char** argv) {
 
     wgpuSurfaceConfigure(surface,&config);
 
-    while (1 || !glfwWindowShouldClose(window)) {
+    int fbW, fbH;
+    while (!glfwWindowShouldClose(window)) {
         main_loop(&surface,&device,&queue,&setup_params);
         glfwPollEvents();
+        wgpuInstanceProcessEvents(instance);
+        glfwGetFramebufferSize(window, &fbW, &fbH);
+        printf("fb: %dx%d\n", fbW, fbH);
+        sleep(1);
+
 
 #ifdef WEBGPU_BACKEND_DAWN
-        wgpuDeviceTick(device); // Dawn requires we manually call tick
+        wgpuDeviceTick(device);
 #endif
-
+#ifdef WEBGPU_BACKEND_WGPU
+        wgpuDevicePoll(device, false, nullptr);
+#endif
     }
 
     // Cleanup
     glfwDestroyWindow(window);
     glfwTerminate();
+    wgpuTextureViewRelease(setup_params.depthTextureView);
+    wgpuTextureRelease(setup_params.depthTexture);
     wgpuQueueRelease(queue);
     wgpuDeviceRelease(device);
     wgpuAdapterRelease(adapter);

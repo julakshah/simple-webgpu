@@ -32,7 +32,7 @@ fn vs_main(in: VertexIn) -> VertexOut {
 	);
 	out.pos = vec4f(pos.x, pos.y * ratio, pos.z * 0.5 + 0.5, 1.0);	
 
-	out.color = vec3f(0.5, 0.5, 0.9);
+	out.color = vec3f(0.9, 0.8, 0.2);
 	return out;
 }
 
